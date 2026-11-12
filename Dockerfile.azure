@@ -1,0 +1,81 @@
+# ── Azure App Service single-container Dockerfile ───────────────────────────
+# Bundles redis-server + FastAPI + Celery worker + Celery beat into ONE
+# container via supervisord — this is what actually gets deployed to
+# Azure App Service (astricvoicebackend-style), matching how the
+# single-user version of this app is already deployed there. No sidecars,
+# so no conflict with App Service's GitHub Deployment Center.
+#
+# Multi-stage build: build-essential/gcc only exist in the `builder` stage
+# and never reach the final image. On the single-user app, a single-stage
+# build combined with default (GPU) torch wheels repeatedly blew past
+# Azure App Service's local pull/unpack disk limit ("no space left on
+# device"), forcing a delete-and-recreate of the whole Web App. This
+# project pulls in even more ML weight (pipecat's silero/onnxruntime
+# stack, on top of sentence-transformers) than that one did, so both the
+# multi-stage split AND the CPU-only torch index in requirements.txt are
+# required here, not optional hardening.
+#
+# For the VM/docker-compose deployment instead, use the plain
+# `Dockerfile` + `docker-compose.yml` in this same repo — that path runs
+# these as four separate containers. Both are kept side by side
+# intentionally; they're for two different targets, not two versions of
+# the same thing.
+#
+# See DEPLOYMENT.md's "Part 9 — Azure App Service (multi-user, reusing
+# your existing B2 plan)" for the full build/push/configure walkthrough.
+
+FROM python:3.11-slim AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Same dependency-layer-first ordering as the plain Dockerfile — this is
+# still the single biggest build-cache win (torch/sentence-transformers/
+# chromadb are slow to install; code changes shouldn't re-trigger that).
+# --user puts everything (including console-script binaries like
+# supervisord) under /root/.local, which is all that gets copied into the
+# final stage below — build-essential/gcc themselves never leave this
+# throwaway stage.
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user --upgrade pip \
+    && pip install --no-cache-dir --user -r requirements.txt
+
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
+        libsndfile1 \
+        redis-server \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=builder /root/.local /root/.local
+ENV PATH=/root/.local/bin:$PATH
+
+COPY app ./app
+COPY alembic.ini .
+COPY alembic ./alembic
+
+COPY supervisord.azure.conf /etc/supervisord.conf
+COPY entrypoint.azure.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+RUN mkdir -p /app/chroma_data /app/uploads
+
+EXPOSE 8000
+
+# Runs as root (not the non-root `appuser` the plain Dockerfile uses) —
+# supervisord managing redis-server + three other processes needs it,
+# matching the existing single-user image's approach. This is a
+# deliberate, already-accepted tradeoff for this deployment target, not
+# a new regression introduced here.
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8000/api/health || exit 1
+
+CMD ["/entrypoint.sh"]

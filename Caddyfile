@@ -1,0 +1,12 @@
+# Replace with your real domain (must have a DNS A record pointing at
+# this VM's public IP before starting Caddy, or it can't get a
+# Let's Encrypt cert). See DEPLOYMENT.md.
+your-backend-domain.example.com {
+    reverse_proxy backend:8000
+
+    # WebSocket upgrade (needed for /api/v1/vobiz-stream/media-stream and
+    # /api/v1/live/ws) is handled automatically by reverse_proxy — no
+    # extra config needed here, Caddy detects the Upgrade header itself.
+
+    encode gzip
+}

@@ -1,0 +1,137 @@
+# docker-compose.yml — backend stack only. Frontend deploys separately to
+# Vercel (see DEPLOYMENT.md) and is not part of this compose file.
+#
+# Services:
+#   migrate         — one-shot: runs `alembic upgrade head` against Neon
+#                      and exits. backend/celery-* wait for it to finish
+#                      successfully before starting, so schema changes
+#                      are applied exactly once per deploy, not raced by
+#                      every replica trying to migrate simultaneously.
+#   redis           — login/admin rate limiting + license status caching +
+#                      Celery broker. Real Redis now (see
+#                      app/core/redis_client.py) — this MUST be present
+#                      for multi-worker/multi-replica correctness; the
+#                      in-memory fallback in that file is single-process
+#                      only and not safe to rely on here.
+#   backend         — FastAPI app (this Dockerfile), 2 uvicorn workers by
+#                      default (see WEB_CONCURRENCY in the Dockerfile).
+#   celery-worker    — background tasks (email sending, batch calling,
+#                      scheduled campaigns — see app/tasks/tasks.py).
+#   celery-beat      — periodic tasks (24h license re-validation, etc. —
+#                      see app/core/celery_app.py's beat_schedule).
+#
+# Postgres is NOT run here anymore — it's Neon (managed, free tier),
+# reached over the internet via DATABASE_URL in .env. See .env.example
+# for the connection-string format and DEPLOYMENT.md for Neon setup.
+#
+# No audio/recording volume anywhere — intentional. Neither call flow
+# writes call audio to local disk (confirmed earlier: the old Record-mode
+# flow downloads to memory and discards after transcription; the
+# streaming flow never records at all). The only things that need to
+# persist across restarts now are Redis (rate-limit/cache state — fine
+# to lose, but nicer not to) and the local ChromaDB knowledge-base store;
+# Postgres data itself lives in Neon, not in any local volume.
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # ports:
+    #   - "6379:6379"
+
+  migrate:
+    build: .
+    command: alembic upgrade head
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: "no"
+
+  backend:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+    ports:
+      # Direct HTTP access for local testing / debugging. Once Caddy (below)
+      # is confirmed working in front of this, either remove this mapping
+      # or firewall port 8000 at the Azure NSG level so the only public
+      # entry point is Caddy's 443.
+      - "8000:8000"
+    volumes:
+      # Persists the local ChromaDB knowledge-base embeddings across
+      # container restarts/redeploys. Not audio, not recordings — just
+      # the vector store built from uploaded knowledge-base documents.
+      - chroma_data:/app/chroma_data
+
+  celery-worker:
+    build: .
+    restart: unless-stopped
+    command: celery -A app.core.celery_app worker --loglevel=info --concurrency=2
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+    volumes:
+      - chroma_data:/app/chroma_data
+
+  celery-beat:
+    build: .
+    restart: unless-stopped
+    command: celery -A app.core.celery_app beat --loglevel=info
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+
+  # Optional but recommended: automatic HTTPS via Let's Encrypt, zero
+  # manual cert work. Needs a real domain pointed at this VM's IP (an A
+  # record) — see DEPLOYMENT.md. If you'd rather terminate TLS at an
+  # Azure-managed layer (App Gateway / Front Door) instead, remove this
+  # service and publish `backend`'s port 8000 directly.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  redis_data:
+  chroma_data:
+  caddy_data:
+  caddy_config:

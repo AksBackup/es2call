@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>License Server Admin</title>
+<style>
+  :root {
+    --bg: #0a0b0f; --surface: #111318; --surface2: #181b22;
+    --border: rgba(255,255,255,0.06); --border2: rgba(255,255,255,0.12);
+    --text: #edeef2; --text2: #9095a8; --text3: #545868;
+    --accent: #6c5ce7; --accentL: rgba(108,92,231,0.12);
+    --green: #00d4aa; --blue: #4d9ef5; --amber: #f0a500; --red: #e85454;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+    font-size: 14px; line-height: 1.5;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 28px 24px 60px; }
+  h1 { font-size: 20px; font-weight: 700; margin: 0 0 2px; letter-spacing: -0.01em; }
+  .sub { color: var(--text3); font-size: 13px; margin: 0 0 22px; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 14px; font-weight: 600; margin: 0 0 14px; color: var(--text); }
+
+  label { display: block; font-size: 11px; font-weight: 600; color: var(--text3);
+    text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  input, select, textarea {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 9px; padding: 9px 12px; font-size: 14px; color: var(--text);
+    outline: none; font-family: inherit; transition: border-color 0.12s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  .field { margin-bottom: 14px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .row3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 14px; }
+
+  button {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    font-weight: 500; border-radius: 9px; cursor: pointer; border: 1px solid transparent;
+    transition: all 0.12s; font-family: inherit; padding: 9px 16px; font-size: 14px;
+  }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #7d6ef0; }
+  .btn-secondary { background: transparent; border-color: var(--border2); color: var(--text); }
+  .btn-secondary:hover { background: rgba(255,255,255,0.04); }
+  .btn-danger { background: rgba(232,84,84,0.1); border-color: rgba(232,84,84,0.25); color: var(--red); }
+  .btn-danger:hover { background: rgba(232,84,84,0.18); }
+  button:disabled { opacity: 0.45; pointer-events: none; }
+
+  .badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; text-transform: capitalize; }
+  .badge-active   { background: rgba(0,212,170,0.12); color: var(--green); }
+  .badge-inactive { background: rgba(240,165,0,0.12); color: var(--amber); }
+  .badge-revoked  { background: rgba(232,84,84,0.12); color: var(--red); }
+
+  .conn-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 7px; }
+  .conn-ok  { background: var(--green); box-shadow: 0 0 0 3px rgba(0,212,170,0.15); }
+  .conn-bad { background: var(--red); }
+  .conn-off { background: var(--text3); }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 16px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+  .stat .val { font-size: 24px; font-weight: 700; }
+  .stat .lbl { font-size: 12px; color: var(--text3); margin-top: 2px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11px; font-weight: 600; color: var(--text3);
+    text-transform: uppercase; letter-spacing: 0.05em; padding: 9px 10px; border-bottom: 1px solid var(--border); }
+  td { padding: 11px 10px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  .mono { font-family: 'SF Mono', Consolas, monospace; font-size: 12px; }
+  .muted { color: var(--text3); }
+
+  .key-reveal {
+    background: var(--surface2); border: 1px solid rgba(0,212,170,0.3); border-radius: 9px;
+    padding: 14px 16px; margin-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .key-reveal .k { font-family: 'SF Mono', Consolas, monospace; font-size: 15px; font-weight: 600; color: var(--green); }
+
+  .toast {
+    position: fixed; bottom: 20px; right: 20px; background: var(--surface2);
+    border: 1px solid var(--border2); border-radius: 10px; padding: 12px 18px;
+    font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); z-index: 50;
+    display: flex; align-items: center; gap: 8px; animation: slideIn 0.2s ease;
+  }
+  .toast.err { border-color: rgba(232,84,84,0.3); color: var(--red); }
+  .toast.ok  { border-color: rgba(0,212,170,0.3); color: var(--green); }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  .empty { text-align: center; padding: 40px 20px; color: var(--text3); }
+  .search-row { display: flex; gap: 10px; margin-bottom: 14px; align-items: center; }
+  .search-row input { flex: 1; }
+  .locked { opacity: 0.4; pointer-events: none; filter: blur(0.3px); }
+  .hint { font-size: 12px; color: var(--text3); margin-top: 6px; }
+  .tab-btn.active { background: var(--accentL); border-color: var(--accent); color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Admin Panel</h1>
+  <p class="sub">Generate license keys and manage user accounts. This talks directly to your backend's admin API — keep this page private (restrict network access at your reverse proxy; the token below is the only application-level gate).</p>
+
+  <!-- Connection -->
+  <div class="card">
+    <h2><span id="connDot" class="conn-dot conn-off"></span>Admin authentication</h2>
+    <div class="field">
+      <label>Admin token</label>
+      <input id="adminToken" type="password" placeholder="Your ADMIN_TOKEN">
+    </div>
+    <button class="btn-primary" onclick="connect()">Connect</button>
+    <span id="connMsg" class="hint"></span>
+  </div>
+
+  <div class="tabs" style="display:flex;gap:8px;margin-bottom:16px">
+    <button class="btn-secondary tab-btn active" id="tabBtnLicenses" onclick="showTab('licenses')">Licenses</button>
+    <button class="btn-secondary tab-btn" id="tabBtnUsers" onclick="showTab('users')">Users</button>
+  </div>
+
+  <div id="app" class="locked">
+  <div id="licensesTab">
+    <div class="stats">
+      <div class="stat"><div class="val" id="statTotal">—</div><div class="lbl">Total licenses</div></div>
+      <div class="stat"><div class="val" id="statActive" style="color:var(--green)">—</div><div class="lbl">Active</div></div>
+      <div class="stat"><div class="val" id="statExpiring" style="color:var(--amber)">—</div><div class="lbl">Expiring &lt; 30 days</div></div>
+      <div class="stat"><div class="val" id="statRevoked" style="color:var(--red)">—</div><div class="lbl">Revoked</div></div>
+    </div>
+
+    <!-- Generate -->
+    <div class="card">
+      <h2>Generate new license</h2>
+      <div class="row3">
+        <div class="field">
+          <label>Client name</label>
+          <input id="genClientName" type="text" placeholder="Acme Realty Pvt Ltd">
+        </div>
+        <div class="field">
+          <label>Tier</label>
+          <select id="genTier">
+            <option value="starter">Starter — $299</option>
+            <option value="pro" selected>Pro — $499</option>
+            <option value="enterprise">Enterprise — $999</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Years</label>
+          <input id="genYears" type="number" value="1" min="1" max="10">
+        </div>
+      </div>
+      <div class="field">
+        <label>Notes (optional)</label>
+        <input id="genNotes" type="text" placeholder="e.g. onboarded via referral">
+      </div>
+      <button class="btn-primary" id="genBtn" onclick="generateLicense()">Generate key</button>
+
+      <div id="keyReveal" style="display:none" class="key-reveal">
+        <div>
+          <div class="hint" style="margin-bottom:4px">Share this with the client — they enter it on the signup page to create their account</div>
+          <div class="k" id="revealedKey"></div>
+        </div>
+        <button class="btn-secondary" onclick="copyKey()">Copy</button>
+      </div>
+    </div>
+
+
+    <!-- List -->
+    <div class="card">
+      <h2>All licenses</h2>
+      <div class="search-row">
+        <input id="search" type="text" placeholder="Search by client name or license key…" oninput="renderTable()">
+        <select id="statusFilter" onchange="renderTable()" style="width:160px">
+          <option value="">All statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="revoked">Revoked</option>
+        </select>
+        <button class="btn-secondary" onclick="loadLicenses()">↻ Refresh</button>
+      </div>
+      <div id="tableWrap"></div>
+    </div>
+  </div>
+
+  <div id="usersTab" style="display:none">
+    <div class="card">
+      <h2>All users</h2>
+      <p class="hint" style="margin-top:-8px; margin-bottom:14px">
+        No self-serve "forgot password" exists (no email system) — if a user is locked out, reset their password here and share the new one with them directly. They can change it themselves afterward in Settings.
+      </p>
+      <div class="search-row">
+        <input id="userSearch" type="text" placeholder="Search by name, email, or company…" oninput="renderUsersTable()">
+        <button class="btn-secondary" onclick="loadUsers()">↻ Refresh</button>
+      </div>
+      <div id="usersTableWrap"></div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<script>
+let SERVER = window.location.origin + '/api/v1';
+let TOKEN = '';
+let LICENSES = [];
+let USERS = [];
+let CURRENT_TAB = 'licenses';
+
+function showTab(tab) {
+  CURRENT_TAB = tab;
+  document.getElementById('licensesTab').style.display = tab === 'licenses' ? '' : 'none';
+  document.getElementById('usersTab').style.display = tab === 'users' ? '' : 'none';
+  document.getElementById('tabBtnLicenses').classList.toggle('active', tab === 'licenses');
+  document.getElementById('tabBtnUsers').classList.toggle('active', tab === 'users');
+  if (tab === 'users' && USERS.length === 0) loadUsers();
+}
+
+function toast(msg, ok = true) {
+  const t = document.createElement('div');
+  t.className = 'toast ' + (ok ? 'ok' : 'err');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(SERVER + path, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(opts.auth !== false ? { 'Authorization': 'Bearer ' + TOKEN } : {}),
+      ...(opts.headers || {}),
+    },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || `Request failed (${res.status})`);
+  return data;
+}
+
+async function connect() {
+  TOKEN = document.getElementById('adminToken').value;
+  const dot = document.getElementById('connDot');
+  const msg = document.getElementById('connMsg');
+  if (!TOKEN) { toast('Enter your admin token', false); return; }
+
+  try {
+    await api('/admin/licenses');   // validates the token — throws on 401
+    dot.className = 'conn-dot conn-ok';
+    msg.textContent = 'Connected';
+    msg.style.color = 'var(--green)';
+    document.getElementById('app').classList.remove('locked');
+    await loadLicenses();
+  } catch (e) {
+    dot.className = 'conn-dot conn-bad';
+    msg.textContent = 'Could not authenticate: ' + e.message;
+    msg.style.color = 'var(--red)';
+    document.getElementById('app').classList.add('locked');
+  }
+}
+
+async function loadLicenses() {
+  try {
+    const data = await api('/admin/licenses');
+    LICENSES = data.licenses || [];
+    renderStats();
+    renderTable();
+  } catch (e) {
+    toast('Could not load licenses: ' + e.message, false);
+  }
+}
+
+function renderStats() {
+  const total = LICENSES.length;
+  const active = LICENSES.filter(l => l.status === 'active').length;
+  const revoked = LICENSES.filter(l => l.status === 'revoked').length;
+  const expiring = LICENSES.filter(l => l.status === 'active' && l.days_left !== null && l.days_left < 30).length;
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statActive').textContent = active;
+  document.getElementById('statExpiring').textContent = expiring;
+  document.getElementById('statRevoked').textContent = revoked;
+}
+
+function badgeClass(status) {
+  if (status === 'active') return 'badge-active';
+  if (status === 'revoked') return 'badge-revoked';
+  return 'badge-inactive';
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function renderTable() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const statusFilter = document.getElementById('statusFilter').value;
+  const wrap = document.getElementById('tableWrap');
+
+  let rows = LICENSES.filter(l =>
+    (!q || (l.client_name || '').toLowerCase().includes(q) || l.license_key.toLowerCase().includes(q)) &&
+    (!statusFilter || l.status === statusFilter)
+  );
+
+  if (rows.length === 0) {
+    wrap.innerHTML = `<div class="empty">No licenses match${q || statusFilter ? ' your filters' : ' yet — generate one above'}.</div>`;
+    return;
+  }
+
+  wrap.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Client</th><th>Tier</th><th>Status</th><th>Domain</th>
+        <th>Expires</th><th>Days left</th><th>Last validated</th><th></th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(l => `
+          <tr>
+            <td>
+              <div style="font-weight:500">${escapeHtml(l.client_name || '—')}</div>
+              <div class="mono muted">${l.license_key}</div>
+            </td>
+            <td style="text-transform:capitalize">${l.tier || '—'}</td>
+            <td><span class="badge ${badgeClass(l.status)}">${l.status}</span></td>
+            <td class="muted">${l.domain || 'not activated'}</td>
+            <td>${fmtDate(l.expires_at)}</td>
+            <td style="color:${l.days_left !== null && l.days_left < 30 ? 'var(--amber)' : 'inherit'}">
+              ${l.days_left !== null ? l.days_left + 'd' : '—'}
+            </td>
+            <td class="muted">${l.last_validated_at ? fmtDate(l.last_validated_at) : 'Never'}</td>
+            <td>
+              ${l.status !== 'revoked'
+                ? `<button class="btn-secondary" style="padding:5px 12px;font-size:12px;margin-right:6px" onclick="resetDomain('${l.license_key}','${escapeHtml(l.client_name || '')}')">Reset domain</button>
+                   <button class="btn-danger" style="padding:5px 12px;font-size:12px" onclick="revokeLicense('${l.license_key}','${escapeHtml(l.client_name || '')}')">Revoke</button>`
+                : ''}
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function generateLicense() {
+  const client_name = document.getElementById('genClientName').value.trim();
+  const tier = document.getElementById('genTier').value;
+  const years = parseInt(document.getElementById('genYears').value, 10) || 1;
+  const notes = document.getElementById('genNotes').value.trim();
+
+  if (!client_name) { toast('Client name is required', false); return; }
+
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true;
+  try {
+    const data = await api('/admin/generate', {
+      method: 'POST',
+      body: JSON.stringify({ client_name, tier, years, notes: notes || null }),
+    });
+    document.getElementById('revealedKey').textContent = data.license_key;
+    document.getElementById('keyReveal').style.display = 'flex';
+    document.getElementById('genClientName').value = '';
+    document.getElementById('genNotes').value = '';
+    toast('License generated for ' + client_name);
+    await loadLicenses();
+  } catch (e) {
+    toast('Generate failed: ' + e.message, false);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function copyKey() {
+  const key = document.getElementById('revealedKey').textContent;
+  navigator.clipboard.writeText(key).then(() => toast('Copied to clipboard'));
+}
+
+async function resetDomain(key, clientName) {
+  if (!confirm(`Reset domain for ${clientName || key}?\n\nThis un-binds the license from its current domain so it can be activated on a new one. Status will go back to "inactive".`)) return;
+  try {
+    await api('/admin/reset-domain', {
+      method: 'POST',
+      body: JSON.stringify({ license_key: key }),
+    });
+    toast('Domain reset — ready to re-activate');
+    await loadLicenses();
+  } catch (e) {
+    toast('Reset failed: ' + e.message, false);
+  }
+}
+
+async function revokeLicense(key, clientName) {
+  if (!confirm(`Revoke license for ${clientName || key}?\n\nThis immediately blocks their deployment from validating. This cannot be undone from here.`)) return;
+  try {
+    await api('/admin/revoke', {
+      method: 'POST',
+      body: JSON.stringify({ license_key: key, reason: 'Revoked via admin panel' }),
+    });
+    toast('License revoked');
+    await loadLicenses();
+  } catch (e) {
+    toast('Revoke failed: ' + e.message, false);
+  }
+}
+
+// ── Users ────────────────────────────────────────────────────────────────────
+
+async function loadUsers() {
+  try {
+    const data = await api('/admin/users');
+    USERS = data.users || [];
+    renderUsersTable();
+  } catch (e) {
+    toast('Could not load users: ' + e.message, false);
+  }
+}
+
+function renderUsersTable() {
+  const q = (document.getElementById('userSearch').value || '').toLowerCase();
+  const wrap = document.getElementById('usersTableWrap');
+
+  let rows = USERS.filter(u =>
+    !q ||
+    (u.full_name || '').toLowerCase().includes(q) ||
+    (u.email || '').toLowerCase().includes(q) ||
+    (u.company_name || '').toLowerCase().includes(q)
+  );
+
+  if (rows.length === 0) {
+    wrap.innerHTML = `<div class="empty">No users match${q ? ' your search' : ' yet'}.</div>`;
+    return;
+  }
+
+  wrap.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Name</th><th>Email</th><th>Company</th><th>License</th><th>Status</th><th>Demo</th><th>Joined</th><th></th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(u => `
+          <tr>
+            <td style="font-weight:500">${escapeHtml(u.full_name || '—')}</td>
+            <td class="mono muted">${escapeHtml(u.email)}</td>
+            <td class="muted">${escapeHtml(u.company_name || '—')}</td>
+            <td>
+              ${u.license_tier ? `<span style="text-transform:capitalize">${u.license_tier}</span>` : '<span class="muted">none</span>'}
+              ${u.license_status ? `<span class="badge ${badgeClass(u.license_status)}" style="margin-left:6px">${u.license_status}</span>` : ''}
+            </td>
+            <td><span class="badge ${u.is_active ? 'badge-active' : 'badge-revoked'}">${u.is_active ? 'active' : 'disabled'}</span></td>
+            <td>
+              ${u.is_demo_account
+                ? `<span class="badge badge-active">demo</span> <span class="muted mono" style="margin-left:4px">${u.demo_calls_remaining ?? 0} left</span>`
+                : `<span class="muted">—</span>`}
+            </td>
+            <td class="muted">${fmtDate(u.created_at)}</td>
+            <td>
+              <button class="btn-secondary" style="padding:5px 12px;font-size:12px;margin-right:6px" onclick="resetUserPassword('${u.id}','${escapeHtml(u.email)}')">Reset password</button>
+              ${u.is_active
+                ? `<button class="btn-danger" style="padding:5px 12px;font-size:12px;margin-right:6px" onclick="toggleUserActive('${u.id}','${escapeHtml(u.email)}',false)">Disable</button>`
+                : `<button class="btn-secondary" style="padding:5px 12px;font-size:12px;margin-right:6px" onclick="toggleUserActive('${u.id}','${escapeHtml(u.email)}',true)">Enable</button>`}
+              ${u.company_id
+                ? `<button class="btn-secondary" style="padding:5px 12px;font-size:12px" onclick="setDemoAccount('${u.company_id}','${escapeHtml(u.email)}',${u.is_demo_account ? 'true' : 'false'},${u.demo_calls_remaining ?? 0})">${u.is_demo_account ? 'Reset demo calls' : 'Make demo account'}</button>`
+                : ''}
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+async function setDemoAccount(companyId, email, isAlreadyDemo, currentRemaining) {
+  const promptMsg = isAlreadyDemo
+    ? `Reset demo call counter for ${email}?\n\nHow many calls should this demo login be able to make before it's blocked again?`
+    : `Turn ${email}'s account into the shared demo account?\n\nOnce this is on, leave Vobiz Auth ID / Token / Phone blank in that account's Settings → Telephony — it will then use the shared Vobiz credentials from your backend's .env instead of needing its own.\n\nHow many calls should this demo login be able to make?`;
+  const input = prompt(promptMsg, isAlreadyDemo ? String(currentRemaining) : '5');
+  if (input === null) return;
+  const calls_remaining = parseInt(input, 10);
+  if (isNaN(calls_remaining) || calls_remaining < 0) { toast('Enter a whole number of 0 or more', false); return; }
+
+  try {
+    const body = { calls_remaining };
+    if (!isAlreadyDemo) body.is_demo_account = true;
+    await api(`/admin/companies/${companyId}/demo-calls`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    toast(isAlreadyDemo ? `Demo calls reset for ${email}` : `${email} is now the demo account`);
+    await loadUsers();
+  } catch (e) {
+    toast('Failed: ' + e.message, false);
+  }
+}
+
+async function resetUserPassword(userId, email) {
+  const newPassword = prompt(`New password for ${email}:\n\n(At least 8 characters. Share this with them directly — there's no email system to send it automatically.)`);
+  if (!newPassword) return;
+  if (newPassword.length < 8) { toast('Password must be at least 8 characters', false); return; }
+  try {
+    await api(`/admin/users/${userId}/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify({ new_password: newPassword }),
+    });
+    toast(`Password reset for ${email} — share it with them now`);
+  } catch (e) {
+    toast('Reset failed: ' + e.message, false);
+  }
+}
+
+async function toggleUserActive(userId, email, enable) {
+  const action = enable ? 'enable' : 'disable';
+  if (!confirm(`${enable ? 'Enable' : 'Disable'} ${email}?${!enable ? '\n\nThey will not be able to log in until re-enabled.' : ''}`)) return;
+  try {
+    await api(`/admin/users/${userId}/${action}`, { method: 'POST' });
+    toast(`${enable ? 'Enabled' : 'Disabled'} ${email}`);
+    await loadUsers();
+  } catch (e) {
+    toast(`${action} failed: ` + e.message, false);
+  }
+}
+
+</script>
+</body>
+</html>

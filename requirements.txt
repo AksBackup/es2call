@@ -1,0 +1,96 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# ── STT — Deepgram ────────────────────────────────────────────────────────────
+websockets>=13.1,<14
+# deepgram-sdk==3.7.7    # Optional official SDK — we use raw websockets above
+
+
+# ── API / Web Server ──────────────────────────────────────────────────────────
+fastapi>=0.115.6,<1
+uvicorn[standard]==0.32.0
+python-multipart==0.0.12
+
+
+# ── Database ──────────────────────────────────────────────────────────────────
+sqlalchemy[asyncio]==2.0.36
+aiosqlite==0.20.0
+asyncpg==0.30.0
+alembic==1.14.0
+
+
+# ── Auth ──────────────────────────────────────────────────────────────────────
+# Firebase Auth replaced local email/password + JWT authentication.
+# python-jose/passlib/bcrypt are no longer used.
+firebase-admin==7.5.0
+cryptography==43.0.3
+pydantic[email]>=2.10.6,<3
+pydantic-settings==2.6.1
+
+
+# ── LLM ───────────────────────────────────────────────────────────────────────
+groq==0.23.0
+httpx==0.28.1
+
+
+# ── Streaming call pipeline (Pipecat) ─────────────────────────────────────────
+# Pipecat 1.x requires protobuf >=5.29.6.
+# pipecat-vobiz provides the VobizFrameSerializer and parse_vobiz_start()
+# helpers required by the Vobiz streaming pipeline.
+pipecat-ai[anthropic,deepgram,groq,openai,sarvam,silero,websocket]>=1.2.0,<2
+pipecat-vobiz>=0.0.3,<0.1
+
+
+# ── TTS ───────────────────────────────────────────────────────────────────────
+gTTS==2.5.3
+
+
+# ── RAG / Vector DB ───────────────────────────────────────────────────────────
+chromadb==0.5.20
+sentence-transformers==3.3.1
+
+
+# ── Document parsing ──────────────────────────────────────────────────────────
+pypdf==5.1.0
+python-docx==1.1.2
+
+
+# ── Email ─────────────────────────────────────────────────────────────────────
+sendgrid==6.11.0
+# IMAP uses Python stdlib imaplib — no extra package needed
+
+
+# ── Background tasks ──────────────────────────────────────────────────────────
+celery[redis]==5.4.0
+redis==5.2.0
+
+
+# ── Timezone ──────────────────────────────────────────────────────────────────
+pytz==2024.1
+
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+python-dotenv==1.0.1
+aiofiles==24.1.0
+python-dateutil==2.9.0
+
+
+# ── Dev / Testing ─────────────────────────────────────────────────────────────
+pytest==8.3.4
+pytest-asyncio==0.24.0
+
+
+# ── Azure single-container deployment ─────────────────────────────────────────
+# Runs redis-server + uvicorn + celery worker + celery beat as one
+# supervisord-managed container.
+supervisor==4.2.5
+
+
+# ── Dependency compatibility ─────────────────────────────────────────────────
+# Pipecat 1.x requires protobuf >=5.29.6,<7.
+# Firebase Admin 7.5.0 is also compatible with protobuf 5.x.
+protobuf==5.29.6
+
+# Extra Python packages needed ONLY for the VoiceLink telephony provider.
+# (Vobiz-only deployments don't need these; the app boots fine without them.)
+voicelink[pipecat]>=0.1.1
+pipecat-ai[websocket]>=1.7,<2
