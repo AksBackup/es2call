@@ -182,7 +182,10 @@ async def run_vobiz_stream_pipeline(
         wire_sample_rate = parsed["sample_rate"] or 8000
         vobiz_encoding = parsed["encoding"] or "audio/x-mulaw"
 
-    language_code = "hi-IN" if mode != "english" else "en-US"
+    # Language comes from the company's Settings (voice_language), not only
+    # from `mode` (which is "support"/"sales" and never "english").
+    english = (mode == "english") or str(getattr(company, "voice_language", "") or "").lower().startswith("en")
+    language_code = "en-US" if english else "hi-IN"
     provider, warning = _resolve_tts_provider(
         getattr(company, "tts_provider", "vobiz"), language_code,
     )
@@ -318,7 +321,7 @@ async def run_vobiz_stream_pipeline(
             for p in (company.products or [])
         ],
     } if t]
-    _model = "nova-3" if mode != "english" else "nova-2"
+    _model = "nova-2" if english else "nova-3"
 
     # BUG FIX (Aug 2026) — "STT not listening to / not recognizing Hindi":
     # `model=` and `language=` were being passed as TOP-LEVEL kwargs to
@@ -349,7 +352,7 @@ async def run_vobiz_stream_pipeline(
         api_key=settings.DEEPGRAM_API_KEY,
         live_options=LiveOptions(
             model=_model,
-            language="multi" if mode != "english" else "en",
+            language="en" if english else "multi",
             interim_results=True,
             utterance_end_ms="1200",
             vad_events=True,
@@ -486,7 +489,7 @@ async def run_vobiz_stream_pipeline(
                     _silence_state["nudged"] = True
                     _silence_state["last_activity"] = datetime.utcnow()
                     nudge_text = (
-                        "Hello? Are you still there?" if mode == "english"
+                        "Hello? Are you still there?" if english
                         else "Hello? Kya aap wahin hain? Main aapki awaaz nahi sun paa raha hoon."
                     )
                     logger.info(f"Silence nudge | call_uuid={call_uuid[:12]}")
@@ -500,7 +503,7 @@ async def run_vobiz_stream_pipeline(
                         )
                         farewell = (
                             "I'm not getting a response, so I'll disconnect now. Thank you!"
-                            if mode == "english"
+                            if english
                             else "Lagta hai koi jawab nahi mil raha, isliye main call disconnect kar raha hoon. Dhanyavaad!"
                         )
                         await _finish_call_after_farewell(farewell, "caller_idle_timeout")
@@ -924,7 +927,7 @@ def _build_llm_service(settings, voice: bool = False, mode: str = "sales"):
                     logger.warning(f"Voice LLM failed; using fallback: {exc}")
                     fallback = (
                         "Ji, ek second. Aapki baat samajh rahi hoon, please ek moment."
-                        if mode != "english"
+                        if not english
                         else "Just a second please, I’m with you."
                     )
                     await self._push_llm_text(fallback)
@@ -986,7 +989,7 @@ def _build_tts_service(
                 settings=SarvamTTSService.Settings(
                     voice=voice_override or default_voice,
                     model="bulbul:v3",
-                    language=Language.HI,
+                    language=(Language.EN_IN if language_code.startswith("en") else Language.HI),
                     temperature=0.7,  # v3-only: more natural/expressive than v2's flat default; try 0.5-0.9 to taste
                 ),
             ),

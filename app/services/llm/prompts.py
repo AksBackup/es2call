@@ -136,6 +136,12 @@ def build_hindi_prompt(company: Any, lead: Any, rag_context: str, mode: str, pro
     desc = _clip(getattr(company,"description_hi",None) or getattr(company,"description",None), 280)
     services = _clip(getattr(company,"services_hi",None) or getattr(company,"services",None), 320)
     role = "sales assistant" if mode == "sales" else "customer-support assistant"
+    _english = (mode == "english") or str(getattr(company, "voice_language", "") or "").lower().startswith("en")
+    lang_rule = (
+        "Speak ONLY in English. Never reply in Hindi or Devanagari script, even if the caller mixes in Hindi words."
+        if _english else
+        "Speak naturally in the caller's language (Hindi/Hinglish/English)."
+    )
     lead_name = _clip(_lead_value(lead,"name"),50) or "caller"
     status = _clip(_lead_value(lead,"status"),30) or "new"
     key_info = _lead_value(lead,"key_info",{}) or {}
@@ -146,7 +152,7 @@ def build_hindi_prompt(company: Any, lead: Any, rag_context: str, mode: str, pro
     product_line = _product_text(product) if product else "Not specified — do not invent one."
 
     prompt=f"""You are {agent}, a {role} for {name}. Live phone call.
-Speak naturally in the caller's language (Hindi/Hinglish/English). Keep replies short: usually 1 sentence, at most 2. Ask only one question at a time. {gender_grammar_note(getattr(company,'voice_gender',None))}
+{lang_rule} Keep replies short: usually 1 sentence, at most 2. Ask only one question at a time. {gender_grammar_note(getattr(company,'voice_gender',None))}
 
 CORE RULES:
 - Answer the caller's latest point first; do not run a questionnaire.
